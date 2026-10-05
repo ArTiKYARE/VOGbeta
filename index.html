@@ -12,6 +12,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,600&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
 
+<!-- Supabase CDN: используется ТОЛЬКО если заданы credentials ниже (real-time табло). Без них — локальный демо-режим -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- html2canvas для сохранения талона в PNG (CDN). Если недоступен — fallback на window.print() -->
 <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -403,7 +405,7 @@ h1,h2,h3,.serif{font-family:var(--serif)}
       <a href="#qr">QR-вылет</a>
       <a href="#moods" onclick="openModal('moodModal')">Настроение</a>
     </nav>
-    <a class="btn btn-primary btn-sm no-print" href="#qr" style="display:none" id="headerCta">Улететь красиво ✨</a>
+    <a class="btn btn-primary btn-sm no-print" href="#qr" id="headerCta">Улететь красиво ✨</a>
     <button class="burger" id="burger" aria-label="Открыть меню" aria-expanded="false">☰</button>
   </div>
   <div class="mobile-menu no-print" id="mobileMenu">
@@ -819,9 +821,8 @@ burger.addEventListener("click", () => {
 });
 mobileMenu.querySelectorAll("a").forEach(a => a.addEventListener("click", () => mobileMenu.classList.remove("open")));
 
-/* Показываем CTA-кнопку в шапке на десктопе */
-const headerCta = $("#headerCta");
-if (window.matchMedia("(min-width:900px)").matches) headerCta.style.display = "inline-flex";
+/* На мобильных скрываем текстовую CTA, оставляя место для бургера */
+if (!window.matchMedia("(min-width:560px)").matches) $("#headerCta").style.display = "none";
 
 /* ---------- Видео hero: fallback + звук ---------- */
 const heroVideo = $("#heroVideo"), heroFallback = $("#heroFallback");
@@ -1009,6 +1010,7 @@ $("#againTicket").addEventListener("click", () => {
    >>> (collection 'flights', onSnapshot). См. initSupabaseStub().
    ============================================================ */
 const LS_KEY = "vogvoyazh_flights";
+let remoteFeed = []; // заполняется из Supabase, если credentials заданы
 
 const DEMO_FEED = [
   {name:"Марина", dest:"Лагуну лайков", mood:"Девичник"},
@@ -1020,10 +1022,11 @@ const DEMO_FEED = [
 function loadFeed(){
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-    return [...saved, ...DEMO_FEED];
+    return [...saved, ...remoteFeed, ...DEMO_FEED];
   } catch(e){ return DEMO_FEED; }
 }
 function saveFlight(entry){
+  if (supabaseClient) supabaseClient.from("flights").insert([entry]); // real-time путь
   try {
     const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
     saved.unshift(entry);
@@ -1031,12 +1034,33 @@ function saveFlight(entry){
   } catch(e){ /* приватный режим — игнорируем */ }
 }
 
-/* Заглушка для будущего real-time бэкенда (Supabase/Firebase).
-   Пример:
-     const supabase = window.supabase.createClient(URL, ANON_KEY);
-     supabase.channel('flights').on('postgres_changes',{event:'INSERT',schema:'public',table:'flights'}, renderBoard).subscribe();
-*/
-function initSupabaseStub(){ /* TODO: подключить реальный real-time здесь */ }
+/* ============================================================
+   REAL-TIME ТАБЛО (опционально). По умолчанию — локальный mock.
+   Чтобы включить общее табло между телефонами в зале:
+   1. Создайте проект на supabase.com и таблицу:
+      create table flights (id bigint generated always as identity primary key, name text, dest text, mood text, created_at timestamptz default now());
+   2. Впишите URL и anon-key ниже + раскомментируйте строки.
+   Альтернатива — Firebase Realtime Database с аналогичной структурой.
+   ============================================================ */
+const SUPABASE_URL = "";   // >>> ЗАМЕНИТЬ: "https://xxxx.supabase.co"
+const SUPABASE_KEY = "";   // >>> ЗАМЕНИТЬ: anon-key
+let supabaseClient = null;
+
+async function initSupabaseStub(){
+  if (!SUPABASE_URL || !SUPABASE_KEY || typeof window.supabase === "undefined") return; // остаёмся в демо-режиме
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const {data} = await supabaseClient.from("flights").select("*").order("created_at",{ascending:false}).limit(50);
+  if (data && data.length){
+    remoteFeed = data.map(r => ({name:r.name, dest:r.dest, mood:r.mood, verb:"улетела в"}));
+    renderBoard();
+  }
+  supabaseClient.channel("flights-realtime")
+    .on("postgres_changes", {event:"INSERT", schema:"public", table:"flights"}, payload => {
+      remoteFeed.unshift({name:payload.new.name, dest:payload.new.dest, mood:payload.new.mood, verb:"улетела в"});
+      renderBoard();
+    })
+    .subscribe();
+}
 
 function feedLine(f){
   const verbs = ["улетела в","улетел в","выбрала","выбрал","летит в","исчезла в"];
