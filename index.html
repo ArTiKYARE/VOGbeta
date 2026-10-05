@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ВОГВОЯЖ — авиакомпания, которой нет</title>
+<meta name="description" content="Вогвояж — шуточный концепт авиакомпании. Билеты в закат, туры без обязательств и экстренный вылет из реальности.">
+<meta name="theme-color" content="#FF2E93">
+
+<!-- Шрифты: Playfair Display (заголовки) + Manrope (текст). При отсутствии сети — системные fallback -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,600&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+
+<!-- Supabase CDN: используется ТОЛЬКО если заданы credentials ниже (real-time табло). Без них — локальный демо-режим -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- html2canvas для сохранения талона в PNG (CDN). Если недоступен — fallback на window.print() -->
+<script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<style>
+/* ============================================================
+   ВОГВОЯЖ — дизайн-система
+   Палитра: крем-розовый фон, фуксия, мягкий/пудровый розовый, слива
+   ============================================================ */
+:root{
+  --bg:#FFF6F8;
+  --hot:#FF2E93;        /* горячая фуксия */
+  --soft:#FF8FBE;       /* мягкий розовый */
+  --powder:#FFD6E6;     /* пудровый */
+  --ink:#2A0F1D;        /* глубокая слива */
+  --gold:#E8B4A0;       /* розовое золото */
+  --peach:#FFC3A0;      /* персиковый */
+  --crimson:#D6236B;    /* малиновый */
+  --neon:#FF5FC1;       /* неоновый pink */
+  --glass:rgba(255,255,255,.55);
+  --glass-border:rgba(255,143,190,.45);
+  --shadow-pink:0 20px 60px -20px rgba(255,46,147,.35);
+  --radius:28px;
+  --serif:"Playfair Display",Georgia,"Times New Roman",serif;
+  --sans:"Manrope","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.55;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+img,svg,video{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:inherit}
+
+/* Фоновые «закатные» пятна */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(60% 40% at 85% 8%, rgba(255,94,193,.18), transparent 70%),
+    radial-gradient(50% 45% at 8% 30%, rgba(255,195,160,.20), transparent 70%),
+    radial-gradient(65% 50% at 90% 85%, rgba(255,46,147,.12), transparent 70%),
+    var(--bg);
+}
+
+.container{width:min(1120px,92%);margin-inline:auto}
+
+/* ---------- Типографика ---------- */
+h1,h2,h3,.serif{font-family:var(--serif)}
+.h-display{font-size:clamp(3rem,9vw,6.5rem);font-weight:900;line-height:1.02;letter-spacing:-.01em}
+.h-section{font-size:clamp(1.9rem,4.5vw,3.2rem);font-weight:700;line-height:1.1}
+.kicker{
+  display:inline-flex;align-items:center;gap:.5em;
+  font-size:.78rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--crimson);background:var(--glass);border:1px solid var(--glass-border);
+  padding:.45em 1.1em;border-radius:999px;backdrop-filter:blur(10px);
+}
+.muted{color:rgba(42,15,29,.62)}
+.tiny-note{font-size:.78rem;color:rgba(42,15,29,.5);font-style:italic}
+
+/* ---------- Кнопки ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.55em;
+  padding:.95em 1.7em;border-radius:999px;font-weight:800;font-size:.95rem;
+  transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s, background .25s;
+  will-change:transform;white-space:nowrap;
+}
+.btn-primary{
+  background:linear-gradient(120deg,var(--hot),var(--neon));color:#fff;
+  box-shadow:var(--shadow-pink);
+}
+.btn-primary:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 26px 70px -18px rgba(255,46,147,.55)}
+.btn-ghost{
+  background:var(--glass);border:1.5px solid var(--glass-border);color:var(--ink);
+  backdrop-filter:blur(10px);
+}
+.btn-ghost:hover{transform:translateY(-3px);background:rgba(255,214,230,.75)}
+.btn-outline{border:1.5px solid var(--hot);color:var(--hot);background:transparent}
+.btn-outline:hover{background:var(--hot);color:#fff;transform:translateY(-3px)}
+.btn-sm{padding:.65em 1.2em;font-size:.85rem}
+
+/* ---------- Header ---------- */
+.header{
+  position:sticky;top:0;z-index:60;
+  background:rgba(255,246,248,.72);backdrop-filter:blur(16px) saturate(1.3);
+  border-bottom:1px solid rgba(255,143,190,.3);
+}
+.header-inner{display:flex;align-items:center;gap:1.2rem;padding:.75rem 0}
+.logo{font-family:var(--serif);font-weight:900;font-size:1.35rem;letter-spacing:.06em;display:flex;align-items:center;gap:.4em}
+.logo .spark{color:var(--hot)}
+.nav{display:none;gap:1.4rem;margin-left:auto;font-weight:700;font-size:.9rem}
+.nav a{position:relative;padding:.3em 0;transition:color .2s}
+.nav a::after{content:"";position:absolute;left:0;bottom:0;width:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--hot),var(--neon));transition:width .3s}
+.nav a:hover{color:var(--hot)}
+.nav a:hover::after{width:100%}
+.header .btn{margin-left:auto}
+@media(min-width:900px){.nav{display:flex}.header .btn{margin-left:1.4rem}}
+.burger{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:var(--glass);border:1px solid var(--glass-border);margin-left:auto}
+@media(min-width:900px){.burger{display:none}}
+.mobile-menu{display:none;flex-direction:column;gap:.2rem;padding:.6rem 4% 1rem;background:rgba(255,246,248,.95);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,143,190,.3)}
+.mobile-menu.open{display:flex}
+.mobile-menu a{padding:.7rem .4rem;font-weight:700;border-bottom:1px dashed rgba(255,143,190,.5)}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;min-height:92vh;display:flex;align-items:center;padding:3.5rem 0 4.5rem;overflow:hidden}
+.hero-media{position:absolute;inset:0;z-index:-1}
+/* ЗАМЕНИТЬ: путь к зацикленному ролику для фона hero */
+.hero-media video{width:100%;height:100%;object-fit:cover}
+/* Розовый градиентный placeholder с анимацией облаков и самолёта (виден, если видео нет) */
+.hero-fallback{
+  position:absolute;inset:0;
+  background:linear-gradient(160deg,#FFD6E6 0%,#FFB3D1 35%,#FF8FBE 60%,#FF9FB0 80%,#FFC3A0 100%);
+}
+.cloud{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(24px);animation:drift linear infinite}
+.cloud.c1{width:340px;height:120px;top:18%;left:-30%;animation-duration:38s}
+.cloud.c2{width:260px;height:90px;top:48%;left:-30%;animation-duration:52s;animation-delay:-14s;opacity:.7}
+.cloud.c3{width:420px;height:140px;top:72%;left:-35%;animation-duration:64s;animation-delay:-30s;opacity:.55}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(160vw)}}
+.plane{position:absolute;top:22%;left:-10%;font-size:2.4rem;animation:fly 22s linear infinite;filter:drop-shadow(0 6px 14px rgba(214,35,107,.35))}
+@keyframes fly{
+  0%{transform:translate(0,0) rotate(-6deg)}
+  50%{transform:translate(60vw,-8vh) rotate(-4deg)}
+  100%{transform:translate(125vw,-14vh) rotate(-2deg)}
+}
+.sound-toggle{
+  position:absolute;right:5%;bottom:12%;z-index:5;
+  width:52px;height:52px;border-radius:50%;font-size:1.2rem;
+  background:var(--glass);border:1.5px solid var(--glass-border);backdrop-filter:blur(10px);
+  box-shadow:var(--shadow-pink);transition:transform .25s;
+}
+.sound-toggle:hover{transform:scale(1.1)}
+.hero-content{max-width:720px}
+.hero .badge-notreal{
+  display:inline-flex;align-items:center;gap:.5em;margin-top:1.6rem;
+  font-size:.8rem;font-weight:700;font-style:italic;color:var(--crimson);
+  background:rgba(255,255,255,.6);border:1px dashed var(--hot);
+  padding:.55em 1.1em;border-radius:999px;backdrop-filter:blur(8px);
+}
+.hero-sub{font-family:var(--serif);font-style:italic;font-size:clamp(1.15rem,2.6vw,1.6rem);margin-top:1rem;color:var(--ink)}
+.hero-extra{margin-top:.8rem;font-size:clamp(.95rem,2vw,1.1rem);color:rgba(42,15,29,.7)}
+.hero-cta{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:2rem}
+.scroll-hint{position:absolute;left:50%;bottom:1.2rem;transform:translateX(-50%);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(42,15,29,.5);animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,8px)}}
+
+/* ---------- Marquee ---------- */
+.marquee{overflow:hidden;border-block:1px solid rgba(255,143,190,.4);background:linear-gradient(90deg,var(--powder),#ffeef4,var(--powder));padding:.65rem 0}
+.marquee-track{display:flex;gap:2.5rem;width:max-content;animation:marquee 26s linear infinite}
+.marquee span{font-weight:800;font-size:.85rem;letter-spacing:.12em;text-transform:uppercase;color:var(--crimson);white-space:nowrap}
+@keyframes marquee{to{transform:translateX(-50%)}}
+
+/* ---------- Секции ---------- */
+.section{padding:clamp(3.5rem,8vw,6rem) 0}
+.section-head{max-width:640px;margin-bottom:2.4rem}
+.section-head .h-section{margin-top:.7rem}
+.section-head p{margin-top:.7rem;color:rgba(42,15,29,.68)}
+
+/* ---------- Поиск билетов (фейк) ---------- */
+.search-card{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);
+  box-shadow:var(--shadow-pink);backdrop-filter:blur(18px);
+  padding:clamp(1.2rem,3vw,2rem);display:grid;gap:1rem;
+}
+.search-grid{display:grid;gap:1rem;grid-template-columns:1fr}
+@media(min-width:760px){.search-grid{grid-template-columns:repeat(4,1fr)}}
+.field label{display:block;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--crimson);margin-bottom:.4em}
+.field input{
+  width:100%;padding:.9em 1.1em;border-radius:16px;border:1.5px solid rgba(255,143,190,.5);
+  background:rgba(255,255,255,.75);font-size:1rem;color:var(--ink);transition:border .2s, box-shadow .2s;
+}
+.field input:focus{outline:none;border-color:var(--hot);box-shadow:0 0 0 4px rgba(255,46,147,.15)}
+.field input::placeholder{color:rgba(42,15,29,.4);font-style:italic}
+.search-actions{display:flex;flex-wrap:wrap;align-items:center;gap:1rem}
+
+/* ---------- Туры ---------- */
+.tours-grid{display:grid;gap:1.4rem;grid-template-columns:1fr}
+@media(min-width:640px){.tours-grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:980px){.tours-grid{grid-template-columns:repeat(3,1fr)}}
+.tour-card{
+  position:relative;border-radius:var(--radius);overflow:hidden;
+  background:#fff;border:1px solid rgba(255,143,190,.35);
+  box-shadow:0 14px 40px -18px rgba(214,35,107,.28);
+  display:flex;flex-direction:column;
+  transition:transform .35s cubic-bezier(.34,1.56,.64,1), box-shadow .35s;
+}
+.tour-card:hover{transform:translateY(-8px) rotate(-.4deg);box-shadow:0 30px 70px -22px rgba(255,46,147,.5)}
+.tour-visual{height:150px;position:relative;display:grid;place-items:center;font-size:2.6rem}
+/* ЗАМЕНИТЬ CSS-градиенты карточек на реальные изображения туров при необходимости */
+.tour-visual.v1{background:linear-gradient(135deg,#FFD6E6,#FF8FBE)}
+.tour-visual.v2{background:linear-gradient(135deg,#FF8FBE,#FF2E93)}
+.tour-visual.v3{background:linear-gradient(135deg,#FFC3A0,#FF8FBE)}
+.tour-visual.v4{background:linear-gradient(135deg,#FF2E93,#D6236B)}
+.tour-visual.v5{background:linear-gradient(135deg,#E8B4A0,#FFD6E6)}
+.tour-visual.v6{background:linear-gradient(135deg,#FF5FC1,#FFC3A0)}
+.tour-sticker{
+  position:absolute;top:12px;right:-34px;transform:rotate(35deg);
+  background:var(--ink);color:#FFD6E6;font-size:.62rem;font-weight:800;letter-spacing:.14em;
+  text-transform:uppercase;padding:.35em 2.6em;
+}
+.tour-body{padding:1.3rem 1.3rem 1.5rem;display:flex;flex-direction:column;gap:.6rem;flex:1}
+.tour-body h3{font-size:1.35rem}
+.tour-desc{font-size:.9rem;color:rgba(42,15,29,.68);flex:1}
+.tour-price{font-weight:800;color:var(--hot);font-size:.95rem}
+.tour-price small{display:block;font-weight:500;color:rgba(42,15,29,.45);font-size:.7rem;font-style:italic}
+
+/* ---------- Ролик ---------- */
+.video-frame{
+  position:relative;border-radius:var(--radius);overflow:hidden;
+  border:1px solid var(--glass-border);box-shadow:var(--shadow-pink);
+  background:linear-gradient(135deg,#2A0F1D,#5b1e3f);aspect-ratio:16/9;
+}
+.video-frame video{width:100%;height:100%;object-fit:cover}
+.video-poster{
+  position:absolute;inset:0;display:grid;place-content:center;gap:.6rem;text-align:center;color:#FFD6E6;
+  background:linear-gradient(135deg,rgba(42,15,29,.85),rgba(214,35,107,.55));
+}
+.video-caption{text-align:center;margin-top:1rem;font-style:italic;color:rgba(42,15,29,.55);font-size:.9rem}
+
+/* ---------- QR-блок ---------- */
+.qr-block{
+  display:grid;gap:2rem;align-items:center;
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:calc(var(--radius)*1.3);
+  padding:clamp(1.5rem,4vw,3rem);box-shadow:var(--shadow-pink);backdrop-filter:blur(18px);
+}
+@media(min-width:820px){.qr-block{grid-template-columns:1.1fr .9fr}}
+.qr-stage{display:grid;place-items:center;gap:1rem}
+.qr-frame{
+  background:#fff;padding:16px;border-radius:24px;
+  box-shadow:0 20px 50px -15px rgba(42,15,29,.35);
+  border:2px solid var(--powder);transition:transform .3s;
+}
+.qr-frame:hover{transform:scale(1.03) rotate(1deg)}
+/* ЗАМЕНИТЬ: вставьте сюда реальный QR — <img src="/assets/qr.png" alt="QR Вогвояж"> вместо inline-SVG ниже */
+.qr-frame svg{width:min(230px,55vw);height:auto;display:block}
+.qr-note{font-weight:800;color:var(--crimson);text-align:center}
+
+/* ---------- Тост ---------- */
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translate(-50%,140%);
+  z-index:120;max-width:min(480px,92vw);
+  background:rgba(42,15,29,.92);color:#FFEAF3;padding:1rem 1.3rem;border-radius:20px;
+  border:1px solid rgba(255,143,190,.4);box-shadow:0 24px 60px -18px rgba(42,15,29,.6);
+  display:flex;flex-direction:column;gap:.7rem;font-size:.92rem;
+  transition:transform .45s cubic-bezier(.34,1.4,.64,1);
+}
+.toast.show{transform:translate(-50%,0)}
+.toast .btn{align-self:flex-start}
+
+/* ---------- Модальные окна ---------- */
+.modal-backdrop{
+  position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:1rem;
+  background:rgba(42,15,29,.55);backdrop-filter:blur(8px);
+}
+.modal-backdrop.open{display:grid}
+.modal{
+  background:linear-gradient(160deg,#fff,#FFF0F5);border-radius:var(--radius);
+  border:1px solid var(--glass-border);box-shadow:0 40px 100px -30px rgba(42,15,29,.5);
+  max-width:560px;width:100%;padding:clamp(1.4rem,4vw,2.2rem);
+  max-height:92vh;overflow:auto;position:relative;
+  animation:pop .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes pop{from{transform:translateY(30px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.modal-close{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:var(--powder);color:var(--ink);font-size:1.1rem;font-weight:800;transition:transform .2s}
+.modal-close:hover{transform:rotate(90deg) scale(1.05)}
+.modal-wide{max-width:640px}
+
+/* ---------- Интерактив (шаги) ---------- */
+.steps{display:flex;gap:.5rem;margin-bottom:1.4rem;flex-wrap:wrap}
+.step-dot{font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(42,15,29,.4);border:1.5px solid rgba(255,143,190,.5);border-radius:999px;padding:.35em 1em}
+.step-dot.active{color:#fff;background:linear-gradient(120deg,var(--hot),var(--neon));border-color:transparent}
+.mood-grid{display:grid;gap:.7rem;grid-template-columns:1fr}
+@media(min-width:520px){.mood-grid{grid-template-columns:1fr 1fr}}
+.mood-btn{
+  text-align:left;padding:1em 1.2em;border-radius:18px;font-weight:800;font-size:1rem;
+  background:rgba(255,255,255,.8);border:1.5px solid rgba(255,143,190,.5);
+  display:flex;align-items:center;gap:.7em;transition:all .25s;
+}
+.mood-btn:hover{border-color:var(--hot);background:var(--powder);transform:translateX(4px)}
+.mood-btn .emoji{font-size:1.4rem}
+
+/* ---------- Посадочный талон ---------- */
+.boarding-pass{
+  font-family:var(--sans);color:var(--ink);border-radius:22px;overflow:hidden;
+  background:linear-gradient(135deg,#FFD6E6 0%,#FFB8D4 45%,#FF8FBE 100%);
+  box-shadow:0 24px 60px -20px rgba(214,35,107,.5);
+  position:relative;
+}
+.bp-top{padding:1.2rem 1.3rem;background:rgba(255,255,255,.55);backdrop-filter:blur(8px);}
+.bp-brand{display:flex;align-items:center;justify-content:space-between;font-weight:800}
+.bp-brand .airline{font-family:var(--serif);font-weight:900;font-size:1.25rem;letter-spacing:.08em}
+.bp-perf{border-top:2.5px dashed rgba(42,15,29,.4);margin:0}
+.bp-main{padding:1.2rem 1.3rem;display:grid;gap:1rem}
+.bp-row{display:flex;justify-content:space-between;gap:1rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(42,15,29,.6)}
+.bp-row strong{display:block;font-size:1rem;text-transform:none;letter-spacing:0;color:var(--ink);margin-top:.15em}
+.bp-name{font-family:var(--serif);font-size:clamp(1.5rem,5vw,2.1rem);font-weight:900;letter-spacing:.02em;line-height:1.1}
+.bp-name small{display:block;font-family:var(--sans);font-size:.68rem;font-weight:800;letter-spacing:.2em;color:rgba(42,15,29,.55);margin-bottom:.2em}
+.bp-route{display:flex;align-items:center;gap:.9rem}
+.bp-route .pt{flex:1}
+.bp-route .arrow{font-size:1.4rem;color:var(--crimson)}
+.bp-stub{padding:1rem 1.3rem;background:rgba(255,255,255,.5);display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.bp-barcode{flex:1;height:44px;min-width:140px;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 4px,var(--ink) 4px 7px,transparent 7px 9px,var(--ink) 9px 12px,transparent 12px 15px);border-radius:4px;opacity:.85}
+.bp-promo{font-weight:800;font-size:.85rem;letter-spacing:.06em;color:var(--crimson)}
+.bp-note{font-size:.8rem;font-style:italic;color:rgba(42,15,29,.7);padding:0 1.3rem 1.2rem}
+.bp-sparkle{position:absolute;font-size:1.1rem;pointer-events:none}
+.bp-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+
+.bp-actions{display:grid;gap:.7rem;grid-template-columns:1fr 1fr;margin-top:1.2rem}
+@media(max-width:480px){.bp-actions{grid-template-columns:1fr}}
+
+/* ---------- Лента пассажиров ---------- */
+.feed{list-style:none;display:grid;gap:.6rem;margin-top:1rem}
+.feed li{
+  background:rgba(255,255,255,.7);border:1px solid rgba(255,143,190,.4);border-radius:14px;
+  padding:.7em 1em;font-size:.9rem;display:flex;gap:.6em;align-items:center;
+  animation:slidein .4s ease;
+}
+@keyframes slidein{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+
+/* ---------- Live-табло / режим ведущего ---------- */
+.board{
+  background:linear-gradient(160deg,#2A0F1D,#4a1631 60%,#6b1d44);
+  color:#FFEAF3;border-radius:calc(var(--radius)*1.2);padding:clamp(1.5rem,4vw,2.8rem);
+  box-shadow:0 40px 90px -30px rgba(42,15,29,.7);
+}
+.board h2{color:#FF8FBE}
+.board-stats{display:flex;flex-wrap:wrap;gap:1rem;margin:1.4rem 0}
+.stat{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,143,190,.35);border-radius:18px;
+  padding:1rem 1.4rem;min-width:150px;flex:1;
+}
+.stat .num{font-family:var(--serif);font-size:2.2rem;font-weight:900;color:var(--neon);line-height:1}
+.stat .lbl{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;opacity:.75;margin-top:.3em}
+.board .feed li{background:rgba(255,255,255,.07);border-color:rgba(255,143,190,.3);color:#FFEAF3}
+.mood-bars{display:grid;gap:.55rem;margin:1rem 0}
+.mood-bar{display:grid;grid-template-columns:170px 1fr auto;gap:.8rem;align-items:center;font-size:.85rem}
+@media(max-width:560px){.mood-bar{grid-template-columns:120px 1fr auto}}
+.mood-bar .track{height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+.mood-bar .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--hot),var(--neon));transition:width .6s ease}
+.winner{
+  margin-top:1.2rem;min-height:64px;border-radius:18px;border:2px dashed rgba(255,143,190,.5);
+  display:grid;place-items:center;padding:1rem;font-family:var(--serif);font-size:1.3rem;color:#FFD6E6;text-align:center;
+}
+.winner.celebrate{animation:shake .5s ease}
+@keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-1.5deg)}75%{transform:rotate(1.5deg)}}
+
+/* ---------- Footer ---------- */
+.footer{padding:3rem 0 2.2rem;border-top:1px solid rgba(255,143,190,.4);background:linear-gradient(180deg,transparent,rgba(255,214,230,.5))}
+.footer .disclaimer{max-width:640px;font-size:.88rem;color:rgba(42,15,29,.65)}
+.footer .love{margin-top:1rem;font-family:var(--serif);font-style:italic;font-size:1.05rem;color:var(--crimson)}
+.footer .links{display:flex;gap:1.2rem;margin-top:1.4rem;font-size:.8rem;font-weight:700;flex-wrap:wrap}
+.footer .links a:hover{color:var(--hot)}
+
+/* ---------- Анимации появления секций ---------- */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1)}
+.reveal.visible{opacity:1;transform:none}
+
+/* ---------- prefers-reduced-motion ---------- */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+  .reveal{opacity:1;transform:none}
+}
+
+/* ============================================================
+   PRINT STYLES: печать только посадочного талона
+   ============================================================ */
+@media print{
+  body *{visibility:hidden !important}
+  #boardingPassBox, #boardingPassBox *{visibility:visible !important}
+  #boardingPassBox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:520px;box-shadow:none !important}
+  .no-print{display:none !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="header no-print">
+  <div class="container header-inner">
+    <a class="logo" href="#top"><span class="spark">✈</span> ВОГВОЯЖ</a>
+    <nav class="nav" aria-label="Основная навигация">
+      <a href="#tickets">Билеты</a>
+      <a href="#tours">Туры</a>
+      <a href="#commercial">Ролик</a>
+      <a href="#qr">QR-вылет</a>
+      <a href="#moods" onclick="openModal('moodModal')">Настроение</a>
+    </nav>
+    <a class="btn btn-primary btn-sm no-print" href="#qr" id="headerCta">Улететь красиво ✨</a>
+    <button class="burger" id="burger" aria-label="Открыть меню" aria-expanded="false">☰</button>
+  </div>
+  <div class="mobile-menu no-print" id="mobileMenu">
+    <a href="#tickets">Билеты</a>
+    <a href="#tours">Туры</a>
+    <a href="#commercial">Ролик</a>
+    <a href="#qr">QR-вылет</a>
+    <a href="#" data-open-mood>Настроение</a>
+    <a class="btn btn-primary" style="margin-top:.6rem" href="#qr">Улететь красиво ✨</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ================= HERO ================= -->
+<section class="hero" aria-label="Главный экран">
+  <div class="hero-media" aria-hidden="true">
+    <!-- ЗАМЕНИТЬ: вставьте реальный рекламный ролик в /assets/vogvoyazh-ad.mp4 -->
+    <video id="heroVideo" autoplay muted loop playsinline preload="metadata">
+      <source src="/assets/vogvoyazh-ad.mp4" type="video/mp4">
+    </video>
+    <!-- Placeholder: розовый закат с облаками и самолётом (показывается, если видео не загрузилось) -->
+    <div class="hero-fallback" id="heroFallback">
+      <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+      <div class="plane">✈️</div>
+    </div>
+  </div>
+
+  <div class="container hero-content">
+    <span class="kicker">✦ Вылет немедленно · Возврат по желанию сердца</span>
+    <h1 class="h-display" style="margin-top:1rem">Вогвояж</h1>
+    <p class="hero-sub">Авиакомпания, которой нет, но настроение настоящее.</p>
+    <p class="hero-extra">Билеты в закат, туры без обязательств и экстренный вылет из реальности.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#tickets">Купить билет в нормальную жизнь 💅</a>
+      <a class="btn btn-ghost" href="#tours">Выбрать тур</a>
+      <a class="btn btn-outline" href="#commercial">Просто посмотреть красоту</a>
+    </div>
+    <span class="badge-notreal">🎀 Не настоящая авиакомпания. Настоящее желание уехать.</span>
+  </div>
+
+  <button class="sound-toggle no-print" id="soundToggle" aria-label="Включить звук ролика" title="Звук вкл/выкл">🔇</button>
+  <div class="scroll-hint" aria-hidden="true">↓ листай красиво</div>
+</section>
+
+<!-- ================= MARQUEE ================= -->
+<div class="marquee no-print" aria-hidden="true">
+  <div class="marquee-track">
+    <span>✦ Оплата настроением</span><span>💄 Багаж: одно хорошее настроение</span><span>✈ Мы перевозим самочувствие</span><span>🌅 Билет в розовую реальность</span><span>💋 Не звоните. Мы в закате.</span>
+    <span>✦ Оплата настроением</span><span>💄 Багаж: одно хорошее настроение</span><span>✈ Мы перевозим самочувствие</span><span>🌅 Билет в розовую реальность</span><span>💋 Не звоните. Мы в закате.</span>
+  </div>
+</div>
+
+<!-- ================= ПОИСК БИЛЕТОВ (ФЕЙК) ================= -->
+<section class="section reveal no-print" id="tickets" aria-label="Поиск розовых рейсов">
+  <div class="container">
+    <div class="section-head">
+      <span class="kicker">✈ Билеты</span>
+      <h2 class="h-section">Найди свой розовый рейс</h2>
+      <p class="muted">Форма красивая. Рейсов нет. Желание уехать — принимаем с уважением.</p>
+    </div>
+
+    <form class="search-card" id="searchForm">
+      <div class="search-grid">
+        <div class="field">
+          <label for="fromCity">Откуда</label>
+          <input id="fromCity" type="text" placeholder="Из реальности">
+        </div>
+        <div class="field">
+          <label for="toCity">Куда</label>
+          <input id="toCity" type="text" placeholder="В закат">
+        </div>
+        <div class="field">
+          <label for="dateField">Дата</label>
+          <input id="dateField" type="text" placeholder="Когда надоест терпеть">
+        </div>
+        <div class="field">
+          <label for="passengers">Пассажиры</label>
+          <input id="passengers" type="text" placeholder="Я и мое настроение">
+        </div>
+      </div>
+      <div class="search-actions">
+        <button class="btn btn-primary" type="submit">Найти розовый рейс 🔍</button>
+        <span class="tiny-note">* никакие данные никуда не летят. Кроме как в ваше воображение.</span>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ================= ТУРЫ ================= -->
+<section class="section reveal no-print" id="tours" aria-label="Туры Вогвояж">
+  <div class="container">
+    <div class="section-head">
+      <span class="kicker">🌅 Туры</span>
+      <h2 class="h-section">Туры без обязательств</h2>
+      <p class="muted">Мы не предлагаем услуги. Мы предлагаем состояния. Держись подальше от понедельника.</p>
+    </div>
+
+    <div class="tours-grid">
+      <article class="tour-card">
+        <div class="tour-visual v1" aria-hidden="true">📵<span class="tour-sticker">хит</span></div>
+        <div class="tour-body">
+          <h3>Отключи уведомления</h3>
+          <p class="tour-desc">3 дня без рабочих чатов, 2 коктейля и один закат, который никто не фоткал для отчета.</p>
+          <p class="tour-price">3 заката <small>опция «расслабить плечи» включена</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 🍸</button>
+        </div>
+      </article>
+
+      <article class="tour-card">
+        <div class="tour-visual v2" aria-hidden="true">💋<span class="tour-sticker">блеск</span></div>
+        <div class="tour-body">
+          <h3>Девичник в невесомости</h3>
+          <p class="tour-desc">Шампанское, блеск для губ и полное отсутствие взрослых решений.</p>
+          <p class="tour-price">12 поцелуев <small>чаевые — комплиментами</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 🥂</button>
+        </div>
+      </article>
+
+      <article class="tour-card">
+        <div class="tour-visual v3" aria-hidden="true">🗓<span class="tour-sticker">экспресс</span></div>
+        <div class="tour-body">
+          <h3>Сбежать от понедельника</h3>
+          <p class="tour-desc">Экспресс-вылет туда, где дедлайны не ловят сигнал.</p>
+          <p class="tour-price">одно хорошее настроение <small>+ скидка на будильник</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 🏃‍♀️</button>
+        </div>
+      </article>
+
+      <article class="tour-card">
+        <div class="tour-visual v4" aria-hidden="true">🌹<span class="tour-sticker">драма</span></div>
+        <div class="tour-body">
+          <h3>Красиво пострадать</h3>
+          <p class="tour-desc">Драматичный закат, ветер в волосах и минимум объяснений.</p>
+          <p class="tour-price">2 коктейля и тишина <small>слезы — бесплатно</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 🎭</button>
+        </div>
+      </article>
+
+      <article class="tour-card">
+        <div class="tour-visual v5" aria-hidden="true">🤫<span class="tour-sticker">секрет</span></div>
+        <div class="tour-body">
+          <h3>Никому не говори</h3>
+          <p class="tour-desc">Секретный маршрут для тех, кто хочет исчезнуть, но остаться в сторис.</p>
+          <p class="tour-price">бесплатно, если очень хочется <small>маршрут сообщим шёпотом</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 🕶</button>
+        </div>
+      </article>
+
+      <article class="tour-card">
+        <div class="tour-visual v6" aria-hidden="true">💅<span class="tour-sticker">premium</span></div>
+        <div class="tour-body">
+          <h3>Быть недоступной</h3>
+          <p class="tour-desc">Премиальный тур для тех, кто официально не берет трубку.</p>
+          <p class="tour-price">3 секрета и недосказанность <small>VIP-режим «прочитаю позже»</small></p>
+          <button class="btn btn-primary btn-sm" data-book>Забронировать закат 📴</button>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ================= РОЛИК ================= -->
+<section class="section reveal no-print" id="commercial" aria-label="Рекламный ролик">
+  <div class="container">
+    <div class="section-head" style="max-width:720px">
+      <span class="kicker">🎬 Ролик</span>
+      <h2 class="h-section">Смотри, как выглядит побег из реальности</h2>
+      <p class="muted">Вогвояж не обещает перелет. Мы обещаем, что вам станет красивее.</p>
+    </div>
+
+    <div class="video-frame">
+      <!-- ЗАМЕНИТЬ: вставьте рекламный ролик в /assets/vogvoyazh-commercial.mp4 -->
+      <video id="adVideo" controls loop playsinline preload="metadata" poster="">
+        <source src="/assets/vogvoyazh-commercial.mp4" type="video/mp4">
+      </video>
+      <div class="video-poster" id="videoPoster">
+        <div style="font-size:3rem">🎞️</div>
+        <p style="font-family:var(--serif);font-size:1.3rem;font-style:italic">Скоро здесь будет красота.<br>Пока — просто представь.</p>
+        <span class="tiny-note" style="color:rgba(255,214,230,.7)">/assets/vogvoyazh-commercial.mp4</span>
+      </div>
+    </div>
+    <p class="video-caption">Актеры не летали. Но очень хотели. 💋</p>
+  </div>
+</section>
+
+<!-- ================= QR-БЛОК ================= -->
+<section class="section reveal no-print" id="qr" aria-label="QR-интерактив">
+  <div class="container">
+    <div class="qr-block">
+      <div>
+        <span class="kicker">🛫 QR-вылет</span>
+        <h2 class="h-section" style="margin-top:.7rem">Экстренный вылет из зала</h2>
+        <p class="muted" style="margin-top:.8rem">Отсканируй код, выбери настроение и получи посадочный талон в розовую мечту.</p>
+        <ul class="qr-notes" style="list-style:none;margin:1.2rem 0;display:grid;gap:.5rem;font-weight:700">
+          <li>✦ Не покупай билет. Выбери настроение.</li>
+          <li>✦ Улети из зала за 10 секунд.</li>
+        </ul>
+        <button class="btn btn-primary" data-open-mood>Открыть интерактив без QR 📱</button>
+        <p class="tiny-note" style="margin-top:.8rem">Для ведущих: ссылка на интерактив — <code>#qr-interactive</code>, табло — <code>#board</code>.</p>
+      </div>
+
+      <div class="qr-stage">
+        <!-- ЗАМЕНИТЬ: поставьте реальный QR — <img src="/assets/qr-vogvoyazh.svg" alt="QR-код Вогвояж"> -->
+        <div class="qr-frame" role="img" aria-label="QR-код (placeholder) для ссылки на интерактив">
+          <svg viewBox="0 0 25 25" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+            <rect width="25" height="25" fill="#ffffff"/>
+            <g fill="#2A0F1D">
+              <path d="M1 1h7v7H1zM15 1h7v7h-7zM1 15h7v7H1z"/>
+              <path d="M3 3h3v3H3zM17 3h3v3h-3zM3 17h3v3H3z" fill="#ffffff"/>
+              <path d="M4 4h1v1H4zM18 4h1v1h-1zM4 18h1v1H4z" fill="#2A0F1D"/>
+              <rect x="10" y="1" width="1" height="1"/><rect x="12" y="1" width="1" height="1"/>
+              <rect x="10" y="3" width="1" height="2"/><rect x="13" y="2" width="2" height="1"/>
+              <rect x="12" y="4" width="1" height="1"/><rect x="10" y="6" width="2" height="1"/>
+              <rect x="1" y="10" width="1" height="1"/><rect x="3" y="10" width="2" height="1"/>
+              <rect x="6" y="11" width="1" height="2"/><rect x="1" y="12" width="1" height="2"/>
+              <rect x="4" y="13" width="2" height="1"/><rect x="2" y="12" width="1" height="1"/>
+              <rect x="9" y="9" width="3" height="1"/><rect x="9" y="11" width="1" height="3"/>
+              <rect x="11" y="12" width="2" height="2"/><rect x="14" y="9" width="1" height="2"/>
+              <rect x="16" y="10" width="2" height="1"/><rect x="15" y="12" width="1" height="1"/>
+              <rect x="18" y="9" width="1" height="3"/><rect x="20" y="11" width="2" height="1"/>
+              <rect x="22" y="9" width="2" height="2"/><rect x="13" y="15" width="2" height="1"/>
+              <rect x="16" y="14" width="1" height="2"/><rect x="18" y="15" width="1" height="1"/>
+              <rect x="20" y="14" width="1" height="2"/><rect x="22" y="16" width="2" height="1"/>
+              <rect x="14" y="17" width="1" height="2"/><rect x="16" y="19" width="2" height="1"/>
+              <rect x="19" y="17" width="2" height="2"/><rect x="22" y="19" width="1" height="2"/>
+              <rect x="10" y="16" width="1" height="2"/><rect x="11" y="19" width="2" height="1"/>
+              <rect x="9" y="21" width="1" height="2"/><rect x="12" y="22" width="1" height="1"/>
+              <rect x="15" y="22" width="2" height="1"/><rect x="18" y="21" width="1" height="1"/>
+              <rect x="14" y="14" width="1" height="1"/><rect x="21" y="21" width="2" height="2"/>
+            </g>
+          </svg>
+        </div>
+        <p class="qr-note">📲 Наведи камеру. Улети красиво.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= НАСТРОЕНИЕ (якорь для меню) ================= -->
+<section class="section reveal no-print" id="moods" aria-label="Настроения" style="padding-top:0">
+  <div class="container">
+    <div class="section-head" style="max-width:760px">
+      <span class="kicker">💗 Настроение</span>
+      <h2 class="h-section">Какое у тебя сегодня настроение для вылета?</h2>
+      <p class="muted">«Расслабиться», «Хочу драмы», «Девичник», «Сбежать от понедельника» или «Быть недоступной». Любое — повод улететь.</p>
+      <div style="margin-top:1.2rem"><button class="btn btn-primary" data-open-mood>Выбрать настроение ✨</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIVE-ТАБЛО (режим ведущего) ================= -->
+<section class="section reveal no-print" id="board" aria-label="Табло экстренных вылетов">
+  <div class="container">
+    <div class="board">
+      <span class="kicker" style="background:rgba(255,255,255,.1);border-color:rgba(255,143,190,.4);color:#FF8FBE">🖥 Режим ведущего · /board</span>
+      <h2 class="h-section" style="margin-top:.7rem">Табло экстренных вылетов</h2>
+
+      <div class="board-stats">
+        <div class="stat"><div class="num" id="flyCounter">0</div><div class="lbl">уже улетели</div></div>
+        <div class="stat"><div class="num" id="onlineCounter">∞</div><div class="lbl">обещаний в воздухе</div></div>
+        <div class="stat"><div class="num">🌅</div><div class="lbl">все рейсы — в закат</div></div>
+      </div>
+
+      <h3 class="serif" style="color:#FFD6E6;font-size:1.2rem">Статистика по настроениям</h3>
+      <div class="mood-bars" id="moodBars"></div>
+
+      <h3 class="serif" style="color:#FFD6E6;font-size:1.2rem;margin-top:1.4rem">Последние пассажиры</h3>
+      <ul class="feed" id="boardFeed"></ul>
+
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1.4rem">
+        <button class="btn btn-ghost" id="refreshFeed" style="background:rgba(255,255,255,.1);border-color:rgba(255,143,190,.4);color:#FFEAF3">Обновить ленту 🔄</button>
+        <button class="btn btn-primary" id="pickWinner">Выбрать победителя 👑</button>
+      </div>
+      <div class="winner" id="winnerBox">Победитель ещё не выбран… держись, будет красиво.</div>
+      <p class="tiny-note" style="color:rgba(255,214,230,.6);margin-top:1rem">Демо-режим: данные локальные (localStorage). Для real-time табло подключите Supabase/Firebase — см. комментарий в JS.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer class="footer no-print">
+  <div class="container">
+    <a class="logo" href="#top" style="font-size:1.6rem"><span class="spark">✈</span> ВОГВОЯЖ</a>
+    <p class="disclaimer" style="margin-top:1rem">Вогвояж — шуточный концепт. Это не настоящая авиакомпания. Мы не продаем билеты и не осуществляем перевозки. Но вдохновляем красиво мечтать. Мы не перевозим пассажиров. Мы перевозим самочувствие.</p>
+    <p class="love">Сделано с любовью к закатам и ненавистью к понедельникам. 💗</p>
+    <div class="links">
+      <a href="#tickets">Билеты</a><a href="#tours">Туры</a><a href="#commercial">Ролик</a><a href="#qr">QR-вылет</a><a href="#board">Табло</a>
+    </div>
+    <p class="tiny-note" style="margin-top:1.4rem">© Вогвояж, 2026. Все взлёты вымышлены. Все совпадения по настроению — случайны.</p>
+  </div>
+</footer>
+
+<!-- ================= TOAST ================= -->
+<div class="toast no-print" id="toast" role="status" aria-live="polite">
+  <span id="toastText"></span>
+  <button class="btn btn-ghost btn-sm" id="toastBtn" hidden></button>
+</div>
+
+<!-- ================= МОДАЛКА: бронирование заката ================= -->
+<div class="modal-backdrop no-print" id="bookModal" role="dialog" aria-modal="true" aria-labelledby="bookTitle">
+  <div class="modal">
+    <button class="modal-close" data-close aria-label="Закрыть">✕</button>
+    <span class="kicker">🌅 Бронь принята</span>
+    <h3 class="h-section" id="bookTitle" style="font-size:1.8rem;margin-top:.7rem">Ваш закат забронирован.</h3>
+    <p class="muted" style="margin-top:.8rem">Оплата принята в формате хорошего настроения. Багаж: 1 сердце, 3 секрета, ручная кладь из ожиданий.</p>
+    <div style="margin-top:1.4rem;display:flex;gap:.7rem;flex-wrap:wrap">
+      <button class="btn btn-primary" id="bookToTicket">Показать посадочный талон 🎫</button>
+      <button class="btn btn-ghost" data-close>Вернуться в реальность</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= МОДАЛКА: QR-ИНТЕРАКТИВ ================= -->
+<div class="modal-backdrop no-print" id="moodModal" role="dialog" aria-modal="true" aria-labelledby="moodTitle">
+  <div class="modal modal-wide" id="moodModalInner">
+    <button class="modal-close" data-close aria-label="Закрыть">✕</button>
+
+    <!-- Шаг 1–2: имя + настроение -->
+    <div id="moodStep">
+      <span class="kicker">📱 Экстренный вылет из зала</span>
+      <h3 class="h-section" id="moodTitle" style="font-size:1.7rem;margin-top:.7rem">Не покупай билет. Выбери настроение.</h3>
+      <div class="steps" style="margin-top:1.2rem">
+        <span class="step-dot active">1 · Имя</span>
+        <span class="step-dot" id="stepDotMood">2 · Настроение</span>
+        <span class="step-dot" id="stepDotTicket">3 · Талон</span>
+      </div>
+
+      <div class="field" style="margin-bottom:1.2rem">
+        <label for="guestName">Как вас звать на борту?</label>
+        <input id="guestName" type="text" placeholder="Например, Мечтательница" autocomplete="off" maxlength="24">
+        <span class="tiny-note" style="display:block;margin-top:.4em">Имя необязательное. Без него вы — тайна с именем «Гость Заката».</span>
+      </div>
+
+      <p style="font-weight:800;margin-bottom:.7rem">Выбери настроение для вылета:</p>
+      <div class="mood-grid" id="moodGrid"></div>
+    </div>
+
+    <!-- Шаг 3: талон -->
+    <div id="ticketStep" hidden>
+      <div class="steps">
+        <span class="step-dot">1 · Имя</span>
+        <span class="step-dot">2 · Настроение</span>
+        <span class="step-dot active">3 · Талон</span>
+      </div>
+      <div id="boardingPassBox"><!-- посадочный талон рендерится сюда --></div>
+
+      <div class="bp-actions no-print">
+        <button class="btn btn-primary" id="saveTicket">Сохранить талон 🖼</button>
+        <button class="btn btn-ghost" id="printTicket">Распечатать 🖨</button>
+        <button class="btn btn-ghost" id="againTicket">Получить еще один закат 🌅</button>
+        <button class="btn btn-outline" id="sendBoard">Отправить на общее табло 📡</button>
+      </div>
+      <p class="tiny-note" style="margin-top:.8rem">Талон хранится только в вашем браузере. Никакой регистрации, email и оплаты — мы же не настоящая авиакасса.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ВОГВОЯЖ — вся логика
+   Чистый JS без сборки. Данные никуда не отправляются.
+   ============================================================ */
+"use strict";
+
+/* ---------- Данные интерактива ---------- */
+const MOODS = {
+  "Расслабиться": {
+    emoji:"🧘‍♀️",
+    destinations:["Пудровый терминал","Остров без дедлайнов","Бухта «потом»","Спа-спутник","Плацкарт в хорошее настроение"]
+  },
+  "Хочу драмы": {
+    emoji:"🎭",
+    destinations:["Театр заката","Вулкан эмоций","Причал красивых слез","Променад недосказанности","Терминал «я же говорила»"]
+  },
+  "Девичник": {
+    emoji:"🥂",
+    destinations:["Девичник в невесомости","Лагуна лайков","Бар «без объяснений»","Остров блеска для губ","Курорт «только для своих»"]
+  },
+  "Сбежать от понедельника": {
+    emoji:"🏃‍♀️",
+    destinations:["Терминал «сбежать»","Полюс понедельника","Поезд в нормальную жизнь","Аэропорт «не беспокоить»","Улица свободных пятниц"]
+  },
+  "Быть недоступной": {
+    emoji:"💅",
+    destinations:["Резиденция «не звоните»","Башня игнора","Люкс «я занята собой»","Терминал offline","Вилла «прочитаю позже»"]
+  }
+};
+
+const BAGGAGE = ["1 сердце","3 секрета","настроение оверсайз","одна невысказанная обида","полярный снимок будущего","два плана и ноль обязательств","чемодан ожиданий","мини-флакон самоуверенности"];
+const GATES = ["Закат-1","Фламинго-4","Облако-2","Розовый-7","Терминал мечты","Выход «не ищи»","Gate unavailable"];
+const NOTES = [
+  "Ваш рейс выполняется настроением.",
+  "Опоздание на собственную жизнь не принимается.",
+  "Питание: комплименты от судьбы.",
+  "Wi-Fi ловит только в моментах счастья.",
+  "Разрешено плакать в иллюминатор.",
+  "Если стало слишком красиво — это нормально.",
+  "Дети до 18 лет допускаются только в душе.",
+  "Внутренний ребенок застрахован."
+];
+
+const rand = arr => arr[Math.floor(Math.random()*arr.length)];
+const $ = sel => document.querySelector(sel);
+
+/* ---------- Header: бургер-меню ---------- */
+const burger = $("#burger"), mobileMenu = $("#mobileMenu");
+burger.addEventListener("click", () => {
+  const open = mobileMenu.classList.toggle("open");
+  burger.setAttribute("aria-expanded", String(open));
+});
+mobileMenu.querySelectorAll("a").forEach(a => a.addEventListener("click", () => mobileMenu.classList.remove("open")));
+
+/* На мобильных скрываем текстовую CTA, оставляя место для бургера */
+if (!window.matchMedia("(min-width:560px)").matches) $("#headerCta").style.display = "none";
+
+/* ---------- Видео hero: fallback + звук ---------- */
+const heroVideo = $("#heroVideo"), heroFallback = $("#heroFallback");
+function checkHeroVideo(){
+  // Если видео не загрузилось (файл-заглушка отсутствует) — показываем розовый градиент
+  if (!heroVideo.currentSrc && heroVideo.readyState === 0) heroFallback.style.display = "block";
+}
+heroVideo.addEventListener("error", () => heroFallback.style.display = "block");
+heroVideo.addEventListener("loadeddata", () => heroFallback.style.display = "none");
+setTimeout(checkHeroVideo, 800);
+
+const soundToggle = $("#soundToggle");
+soundToggle.addEventListener("click", () => {
+  heroVideo.muted = !heroVideo.muted;
+  soundToggle.textContent = heroVideo.muted ? "🔇" : "🔊";
+  soundToggle.setAttribute("aria-label", heroVideo.muted ? "Включить звук ролика" : "Выключить звук ролика");
+  if (!heroVideo.muted) heroVideo.play().catch(()=>{});
+});
+
+/* ---------- Видео в секции ролика: скрываем постер, если видео играет ---------- */
+const adVideo = $("#adVideo"), videoPoster = $("#videoPoster");
+adVideo.addEventListener("playing", () => videoPoster.style.display = "none");
+adVideo.addEventListener("error", () => videoPoster.style.display = "grid");
+videoPoster.addEventListener("click", () => { videoPoster.style.display = "none"; });
+
+/* ---------- Тосты ---------- */
+const toast = $("#toast"), toastText = $("#toastText"), toastBtn = $("#toastBtn");
+let toastTimer;
+function showToast(text, btnLabel, onBtn){
+  toastText.textContent = text;
+  if (btnLabel){
+    toastBtn.hidden = false; toastBtn.textContent = btnLabel;
+    toastBtn.onclick = () => { hideToast(); onBtn && onBtn(); };
+  } else toastBtn.hidden = true;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 6000);
+}
+function hideToast(){ toast.classList.remove("show"); }
+
+/* ---------- Фейковый поиск билетов ---------- */
+$("#searchForm").addEventListener("submit", e => {
+  e.preventDefault();
+  showToast("Реальных рейсов нет, но ваше желание уехать принято к сведению. 💌",
+    "Выбрать тур вместо этого",
+    () => $("#tours").scrollIntoView({behavior:"smooth"}));
+});
+
+/* ---------- Модальные окна ---------- */
+function openModal(id){ $("#" + id).classList.add("open"); document.body.style.overflow = "hidden"; }
+function closeModal(m){ m.classList.remove("open"); document.body.style.overflow = ""; }
+document.querySelectorAll(".modal-backdrop").forEach(m => {
+  m.addEventListener("click", e => { if (e.target === m) closeModal(m); });
+  m.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => closeModal(m)));
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") document.querySelectorAll(".modal-backdrop.open").forEach(closeModal);
+});
+document.querySelectorAll("[data-open-mood]").forEach(b => b.addEventListener("click", e => {
+  e.preventDefault(); openMoodFlow();
+}));
+
+/* ---------- Бронирование заката ---------- */
+document.querySelectorAll("[data-book]").forEach(btn => {
+  btn.addEventListener("click", () => openModal("bookModal"));
+});
+$("#bookToTicket").addEventListener("click", () => {
+  closeModal($("#bookModal"));
+  openMoodFlow();
+});
+
+/* ============================================================
+   QR-ИНТЕРАКТИВ: имя → настроение → посадочный талон
+   ============================================================ */
+const moodGrid = $("#moodGrid");
+Object.entries(MOODS).forEach(([name, m]) => {
+  const b = document.createElement("button");
+  b.className = "mood-btn"; b.type = "button";
+  b.innerHTML = `<span class="emoji">${m.emoji}</span>${name}`;
+  b.addEventListener("click", () => generateTicket(name));
+  moodGrid.appendChild(b);
+});
+
+function openMoodFlow(){
+  $("#ticketStep").hidden = true;
+  $("#moodStep").hidden = false;
+  openModal("moodModal");
+  setTimeout(() => $("#guestName").focus(), 350);
+}
+
+let currentTicket = null;
+
+function generateTicket(moodName){
+  const rawName = $("#guestName").value.trim();
+  const name = (rawName || "ГОСТЬ ЗАКАТА").toUpperCase();
+  const dest = rand(MOODS[moodName].destinations);
+  currentTicket = {
+    name, mood: moodName, dest,
+    flight: "VOY-" + (Math.floor(Math.random()*900) + 100),
+    seat: (Math.floor(Math.random()*28)+1) + rand(["A","B","C","D","E","F"]),
+    gate: rand(GATES),
+    baggage: rand(BAGGAGE),
+    promo: "PINK-ZAL-" + Math.random().toString(36).slice(2,6).toUpperCase(),
+    note: rand(NOTES),
+    date: new Date().toLocaleDateString("ru-RU")
+  };
+  renderTicket(currentTicket);
+  $("#moodStep").hidden = true;
+  $("#ticketStep").hidden = false;
+}
+
+function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function renderTicket(t){
+  $("#boardingPassBox").innerHTML = `
+  <div class="boarding-pass" id="bpCard">
+    <span class="bp-sparkle" style="top:10px;right:16px">✨</span>
+    <span class="bp-sparkle" style="bottom:64px;left:12px">💗</span>
+    <div class="bp-top">
+      <div class="bp-brand">
+        <span class="airline">✈ ВОГВОЯЖ</span>
+        <span style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--crimson)">Boarding Mood Pass</span>
+      </div>
+      <div class="bp-row" style="margin-top:.9rem">
+        <span>Рейс<strong>${esc(t.flight)}</strong></span>
+        <span>Дата<strong style="text-transform:none">${esc(t.date)}</strong></span>
+        <span>Место<strong>${esc(t.seat)}</strong></span>
+        <span>Выход<strong>${esc(t.gate)}</strong></span>
+      </div>
+    </div>
+    <div class="bp-main">
+      <div class="bp-name"><small>Пассажир · Настроение: ${esc(t.mood)}</small>${esc(t.name)}</div>
+      <div class="bp-route">
+        <div class="pt bp-row" style="flex:1"><span>Откуда</span><strong>Зал ожидания реальности</strong></div>
+        <div class="arrow" aria-hidden="true">✈</div>
+        <div class="pt bp-row" style="flex:1;text-align:right"><span>Куда</span><strong>${esc(t.dest)}</strong></div>
+      </div>
+      <div class="bp-grid-3">
+        <div class="bp-row"><span>Багаж</span><strong>${esc(t.baggage)}</strong></div>
+        <div class="bp-row"><span>Промокод</span><strong>${esc(t.promo)}</strong></div>
+        <div class="bp-row"><span>Класс</span><strong>Розовый</strong></div>
+      </div>
+    </div>
+    <hr class="bp-perf">
+    <div class="bp-stub">
+      <div class="bp-barcode" aria-hidden="true"></div>
+      <div class="bp-promo">${esc(t.promo)}</div>
+    </div>
+    <p class="bp-note">Примечание: «${esc(t.note)}»</p>
+  </div>`;
+}
+
+/* ---------- Сохранить талон (html2canvas + fallback на печать) ---------- */
+$("#saveTicket").addEventListener("click", async () => {
+  const card = $("#bpCard");
+  if (!card) return;
+  try {
+    if (typeof html2canvas !== "function") throw new Error("html2canvas недоступен");
+    const canvas = await html2canvas(card, {backgroundColor:null, scale:2});
+    const a = document.createElement("a");
+    a.download = "vogvoyazh-boarding-pass.png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+    showToast("Талон сохранён. Красота должна быть при себе. 💅");
+  } catch(err) {
+    // Fallback: если библиотека не загрузилась (нет сети) — предлагаем печать
+    showToast("Сохранение в картинку недоступно — открываю печать. 🖨");
+    setTimeout(() => window.print(), 900);
+  }
+});
+
+/* ---------- Распечатать (print styles оставят только талон) ---------- */
+$("#printTicket").addEventListener("click", () => window.print());
+
+/* ---------- Получить ещё один закат ---------- */
+$("#againTicket").addEventListener("click", () => {
+  $("#ticketStep").hidden = true;
+  $("#moodStep").hidden = false;
+});
+
+/* ============================================================
+   ОБЩЕЕ ТАБЛО (mock, localStorage)
+   >>> ДЛЯ REAL-TIME: замените loadFeed/saveFeed на запросы к
+   >>> Supabase (table 'flights', realtime channel) или Firebase
+   >>> (collection 'flights', onSnapshot). См. initSupabaseStub().
+   ============================================================ */
+const LS_KEY = "vogvoyazh_flights";
+let remoteFeed = []; // заполняется из Supabase, если credentials заданы
+
+const DEMO_FEED = [
+  {name:"Марина", dest:"Лагуну лайков", mood:"Девичник"},
+  {name:"Кирилл", dest:"Терминал «сбежать»", mood:"Сбежать от понедельника"},
+  {name:"Соня", dest:"Остров без дедлайнов", mood:"Расслабиться"},
+  {name:"Аня", dest:"Резиденция «не звоните»", mood:"Быть недоступной"}
+];
+
+function loadFeed(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+    return [...saved, ...remoteFeed, ...DEMO_FEED];
+  } catch(e){ return DEMO_FEED; }
+}
+function saveFlight(entry){
+  if (supabaseClient) supabaseClient.from("flights").insert([entry]); // real-time путь
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+    saved.unshift(entry);
+    localStorage.setItem(LS_KEY, JSON.stringify(saved.slice(0, 50)));
+  } catch(e){ /* приватный режим — игнорируем */ }
+}
+
+/* ============================================================
+   REAL-TIME ТАБЛО (опционально). По умолчанию — локальный mock.
+   Чтобы включить общее табло между телефонами в зале:
+   1. Создайте проект на supabase.com и таблицу:
+      create table flights (id bigint generated always as identity primary key, name text, dest text, mood text, created_at timestamptz default now());
+   2. Впишите URL и anon-key ниже + раскомментируйте строки.
+   Альтернатива — Firebase Realtime Database с аналогичной структурой.
+   ============================================================ */
+const SUPABASE_URL = "";   // >>> ЗАМЕНИТЬ: "https://xxxx.supabase.co"
+const SUPABASE_KEY = "";   // >>> ЗАМЕНИТЬ: anon-key
+let supabaseClient = null;
+
+async function initSupabaseStub(){
+  if (!SUPABASE_URL || !SUPABASE_KEY || typeof window.supabase === "undefined") return; // остаёмся в демо-режиме
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const {data} = await supabaseClient.from("flights").select("*").order("created_at",{ascending:false}).limit(50);
+  if (data && data.length){
+    remoteFeed = data.map(r => ({name:r.name, dest:r.dest, mood:r.mood, verb:"улетела в"}));
+    renderBoard();
+  }
+  supabaseClient.channel("flights-realtime")
+    .on("postgres_changes", {event:"INSERT", schema:"public", table:"flights"}, payload => {
+      remoteFeed.unshift({name:payload.new.name, dest:payload.new.dest, mood:payload.new.mood, verb:"улетела в"});
+      renderBoard();
+    })
+    .subscribe();
+}
+
+function feedLine(f){
+  const verbs = ["улетела в","улетел в","выбрала","выбрал","летит в","исчезла в"];
+  const v = /[а-яА-ЯёЁ]$/.test(f.name) ? rand(verbs.slice(0,1).concat(verbs.slice(2))) : rand(verbs);
+  return `${esc(f.name)} ${f.verb || rand(verbs)} ${esc(f.dest)}`;
+}
+
+function renderBoard(){
+  const feed = loadFeed();
+  $("#flyCounter").textContent = String(feed.length + Math.floor(Math.random()*0));
+  // Лента: последние 6
+  $("#boardFeed").innerHTML = feed.slice(0,6).map(f => `<li>✈ ${feedLine(f)}</li>`).join("");
+  // Статистика по настроениям
+  const counts = {};
+  Object.keys(MOODS).forEach(m => counts[m] = 0);
+  feed.forEach(f => { if (counts[f.mood] !== undefined) counts[f.mood]++; });
+  const max = Math.max(1, ...Object.values(counts));
+  $("#moodBars").innerHTML = Object.entries(counts).map(([m,c]) => `
+    <div class="mood-bar">
+      <span>${MOODS[m].emoji} ${esc(m)}</span>
+      <div class="track"><div class="fill" style="width:${(c/max*100).toFixed(0)}%"></div></div>
+      <span>${c}</span>
+    </div>`).join("");
+}
+
+$("#refreshFeed").addEventListener("click", () => {
+  // Демо-режим: добавляем фейкового пассажира, чтобы лента «оживала»
+  const names = ["Вика","Лиза","Даша","Рома","Тася","Ника","Женя","Соло"];
+  const moods = Object.keys(MOODS);
+  const mood = rand(moods);
+  const fake = {name: rand(names), dest: rand(MOODS[mood].destinations), mood, verb: Math.random()>0.5?"улетела в":"выбрал"};
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+    saved.unshift(fake);
+    localStorage.setItem(LS_KEY, JSON.stringify(saved.slice(0,50)));
+  } catch(e){}
+  renderBoard();
+  showToast(`${fake.name} только что улетела в ${fake.dest}. Завидуем молча. 🌅`);
+});
+
+$("#sendBoard").addEventListener("click", () => {
+  if (!currentTicket) return;
+  saveFlight({name: currentTicket.name === "ГОСТЬ ЗАКАТА" ? "Гость Заката" : capWord(currentTicket.name), dest: currentTicket.dest, mood: currentTicket.mood, verb: "улетела в"});
+  renderBoard();
+  showToast("Вы на общем табло! Вас видят все, кто красиво опаздывает. 📡");
+});
+function capWord(w){ return w.charAt(0) + w.slice(1).toLowerCase(); }
+
+$("#pickWinner").addEventListener("click", () => {
+  const feed = loadFeed();
+  if (!feed.length) return;
+  const w = rand(feed);
+  const box = $("#winnerBox");
+  box.innerHTML = `👑 Победитель: <strong>${esc(w.name)}</strong> — рейс в ${esc(w.dest)}. Заберите приз настроением у стойки «не звоните».`;
+  box.classList.remove("celebrate"); void box.offsetWidth; box.classList.add("celebrate");
+});
+
+initSupabaseStub();
+renderBoard();
+
+/* ---------- Hash-роутинг: #qr-interactive / #zal / #board ---------- */
+function handleHash(){
+  const h = location.hash;
+  if (h === "#qr-interactive" || h === "#zal" || h === "#mood"){
+    openMoodFlow();
+  }
+}
+window.addEventListener("hashchange", handleHash);
+if (location.hash) setTimeout(handleHash, 300);
+
+/* ---------- Плавное появление секций (IntersectionObserver) ---------- */
+const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (!prefersReduced && "IntersectionObserver" in window){
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => { if (en.isIntersecting){ en.target.classList.add("visible"); io.unobserve(en.target); } });
+  }, {threshold:.12});
+  document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+} else {
+  document.querySelectorAll(".reveal").forEach(el => el.classList.add("visible"));
+}
+</script>
+</body>
+</html>
